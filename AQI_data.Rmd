@@ -1,0 +1,70 @@
+---
+title: "Untitled"
+output: pdf_document
+date: "2025-02-22"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library('quantmod')
+library(tidyverse)
+library(lubridate)
+library(xts)
+```
+
+```{r}
+# Data 
+data = read.csv("Shanghai AQI and Wheather 2014-2021.csv")
+aqi_levels <- c(
+  "Hazardous" = 5,
+  "Very unhealthy" = 4,
+  "Unhealthy" = 3,
+  "Unhealthy for sensitive groups" = 2,
+  "Moderate" = 1
+)
+
+dates = data$date
+data = data |>
+  mutate(AQI_Numeric = aqi_levels[AQI_Explained]) |>
+  mutate(temp = (maxtempC + mintempC)/2, .after = mintempC) |>
+  dplyr::select(-c("date"))
+AQI_data <- xts(data, order.by = as.POSIXct(dates))
+```
+
+```{r}
+# plots
+data <- read.csv("Shanghai AQI and Wheather 2014-2021.csv")
+data$date <- as.POSIXct(data$date, format="%Y-%m-%d")
+data$AQI <- as.numeric(data$AQI)
+AQI_xts <- xts(data$AQI, order.by = data$date)
+plot(AQI_xts, main="Shanghai AQI (2014-2021)", lwd=2, ylab="AQI", xlab="Year")
+
+AQI_df <- data.frame(date = index(AQI_data), AQI_data)
+aqi_levels <- c(
+  "Moderate" = 1,
+  "Unhealthy for Sensitive Groups" = 2,
+  "Unhealthy" = 3,
+  "Very Unhealthy" = 4,
+  "Hazardous" = 5
+)
+
+AQI_df$AQI_Level <- factor(AQI_df$AQI_Numeric, 
+                           levels = c(1, 2, 3, 4, 5), 
+                           labels = names(aqi_levels))
+aqi_freq <- AQI_df %>%
+  count(AQI_Level) %>%
+  arrange(desc(n)) 
+
+ggplot(aqi_freq, aes(x = reorder(AQI_Level, -n), y = n, fill = AQI_Level)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Pollution Levels (AQI ranges)",
+       x = "Pollution Level", 
+       y = "Frequency") +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+
