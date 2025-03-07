@@ -50,7 +50,7 @@ data1 <- read.csv("Shanghai AQI and Wheather 2014-2021.csv") |>
 data1$date <- as.POSIXct(data1$date, format="%Y-%m-%d")
 data1$AQI <- as.numeric(data1$AQI)
 AQI_xts <- xts(data1$AQI, order.by = data1$date)
-plot(AQI_xts, main="Shanghai AQI (2014-2021)", lwd=2, ylab="AQI", xlab="Year")
+plot(AQI_xts, main="Shanghai AQI (2017-2020)", lwd=2, ylab="AQI", xlab="Year")
 
 AQI_df <- data.frame(date = index(AQI_data), AQI_data)
 aqi_levels <- c(
