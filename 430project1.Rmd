@@ -1,0 +1,947 @@
+---
+title: "Untitled"
+output: html_document
+date: "2025-03-08"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library('quantmod')
+library(tidyverse)
+library(lubridate)
+library(xts)
+library(forecast)
+library(tseries)
+
+# Load the original dataset
+data <- read.csv("Shanghai AQI and Wheather 2014-2021.csv")
+
+# Filter data for years 2017 to 2021 and calculate average temp
+data <- data |>
+  mutate(AQI_Numeric = case_when(
+    AQI_Explained == "Hazardous" ~ 5,
+    AQI_Explained == "Very unhealthy" ~ 4,
+    AQI_Explained == "Unhealthy" ~ 3,
+    AQI_Explained == "Unhealthy for sensitive groups" ~ 2,
+    AQI_Explained == "Moderate" ~ 1,
+    TRUE ~ NA_real_
+  )) |>
+  mutate(temp = (maxtempC + mintempC)/2, .after = mintempC)
+
+# Convert date and subset from 2017 onwards
+data$date <- as.Date(data$date)
+data <- data |> filter(date >= "2017-01-01"&date <= "2020-12-31")
+
+# Keep the original AQI numerical value
+AQI_xts <- xts(data$AQI, order.by = data$date)
+```
+
+```{r}
+plot(AQI_xts, main="Shanghai AQI Daily Values (2017-2020)", ylab="AQI")
+```
+#A1. ARIMA (no aggregation, no predictors)
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(xts)
+library(forecast)
+library(tseries)
+
+# Load and preprocess data clearly (consistent with your code above)
+data <- read.csv("Shanghai AQI and Wheather 2014-2021.csv") |>
+  mutate(date = as.Date(date)) |>
+  filter(date >= "2017-01-01" & date <= "2021-01-30")
+
+# Split data into training (up to 2020-12-31) and test (2021-01)
+train_data <- data %>% filter(date <= "2020-12-31")
+test_data <- data %>% filter(date > "2020-12-31")
+
+# Convert training AQI to xts
+AQI_xts_train <- xts(train_data$AQI, order.by = train_data$date)
+
+# Check stationarity explicitly using ADF test
+library(tseries)
+adf_result <- adf.test(AQI_xts)
+print(adf.test(AQI_xts))
+
+# Fit ARIMA (auto-selected)
+model_A1 <- auto.arima(AQI_xts, seasonal=FALSE)
+summary(model_A1)
+
+# Residual diagnostics
+checkresiduals(model_A1)
+
+# Forecast for January 2021 (31 days)
+forecast_A1 <- forecast(model_A1, h=31)
+
+# Plot forecast results clearly
+plot(forecast_A1, main="January 2021 AQI Forecast (Daily ARIMA - No Predictors)[A1]")
+
+# Compute forecast accuracy (MSE) explicitly using test data
+actual_AQI <- test_data$AQI[1:31]  # January 2021 AQI actuals
+forecasted_AQI <- forecast_A1$mean[1:31]
+
+MSE_A1_forecast <- mean((actual_AQI - forecasted_AQI)^2,na.rm = TRUE)
+
+# Print helpful statistics explicitly
+cat("\n--- Model A1 (Daily ARIMA - No Predictors) Statistics ---\n")
+cat("AIC:", model_A1$aic, "\n")
+cat("BIC:", model_A1$bic, "\n")
+cat("In-sample MSE:", mean(model_A1$residuals^2, na.rm=TRUE), "\n")
+cat("Forecast MSE (January 2021):", MSE_A1_forecast, "\n\n")
+
+# Ljung-Box test explicitly checking residual autocorrelation
+Box.test(model_A1$residuals, lag=20, type="Ljung-Box")
+```
+
+
+## A1 plotting:
+```{r}
+library(tidyverse)
+library(lubridate)
+library(xts)
+library(forecast)
+library(tseries)
+
+# Load and preprocess data clearly (consistent with your code above)
+data <- read.csv("Shanghai AQI and Wheather 2014-2021.csv") |>
+  mutate(date = as.Date(date)) |>
+  filter(date >= "2017-01-01" & date <= "2021-01-30")
+
+# Split data into training (up to 2020-12-31) and test (2021-01)
+train_data <- data %>% filter(date <= "2020-12-31")
+test_data <- data %>% filter(date > "2020-12-31")
+
+# Convert training AQI to xts
+AQI_xts_train <- xts(train_data$AQI, order.by = train_data$date)
+
+# Check stationarity explicitly using ADF test
+library(tseries)
+adf_result <- adf.test(AQI_xts)
+print(adf.test(AQI_xts))
+
+# Fit ARIMA (auto-selected)
+model_A1 <- auto.arima(AQI_xts, seasonal=FALSE)
+summary(model_A1)
+
+# Residual diagnostics
+checkresiduals(model_A1)
+
+# Forecast for January 2021 (31 days)
+forecast_A1 <- forecast(model_A1, h=31)
+
+# Plot forecast results clearly
+# Define explicit forecast dates for January 2021
+forecast_dates <- seq.Date(from = as.Date("2021-01-01"),
+                           to = as.Date("2021-01-31"),
+                           by = "day")
+
+# Compute forecast accuracy (MSE) explicitly using test data
+actual_AQI <- test_data$AQI[1:31]  # January 2021 AQI actuals
+forecasted_AQI <- forecast_A1$mean[1:31]
+
+MSE_A1_forecast <- mean((actual_AQI - forecasted_AQI)^2,na.rm = TRUE)
+
+
+# Plot explicitly aligned forecast without default axis
+plot(forecast_dates, forecast_A1$mean, type = "l",
+     col = "blue", lwd = 2,
+     ylim = range(c(forecast_A1$lower, forecast_A1$upper, actual_AQI),na.rm = T),
+     main = "January 2021 AQI Forecast (Daily ARIMA - No Predictors)[A1]",
+     xlab = "Date", ylab = "AQI", xaxt = "n")
+
+# Explicitly plot forecast confidence intervals
+polygon(c(forecast_dates, rev(forecast_dates)),
+        c(forecast_A1$lower[,2], rev(forecast_A1$upper[,2])),
+        col = rgb(0, 0, 1, 0.2), border = NA)
+
+# Explicitly add actual AQI values as red line
+lines(forecast_dates, actual_AQI, col = "red", lwd = 2)
+
+# Explicitly format the x-axis with dates
+axis.Date(1, at = forecast_dates, format = "%Y-%m-%d", las = 2, cex.axis = 0.7)
+
+# Add explicit legend for clarity
+legend("topright", legend = c("Forecast", "Actual"), col = c("blue", "red"), lwd = 2)
+
+# Print helpful statistics explicitly
+cat("\n--- Model A1 (Daily ARIMA - No Predictors) Statistics ---\n")
+cat("AIC:", model_A1$aic, "\n")
+cat("BIC:", model_A1$bic, "\n")
+cat("In-sample MSE:", mean(model_A1$residuals^2, na.rm=TRUE), "\n")
+cat("Forecast MSE (January 2021):", MSE_A1_forecast, "\n\n")
+
+# Ljung-Box test explicitly checking residual autocorrelation
+Box.test(model_A1$residuals, lag=20, type="Ljung-Box")
+```
+
+
+
+
+## A2. no aggregating weekly, arimaX
+
+```{r}
+library(tidyverse)
+library(forecast)
+library(lubridate)
+library(xts)
+
+# === Data loading and preprocessing clearly ===
+data <- read.csv("Shanghai AQI and Wheather 2014-2021.csv") |>
+  mutate(date = as.Date(date)) |>
+  mutate(temp = (maxtempC + mintempC)/2) |>
+  filter(date >= "2017-01-01" & date <= "2021-01-31") |>
+  select(date, AQI, temp, pressure, windspeedKmph, humidity)
+
+# Explicitly fill missing dates if needed (continuous daily data)
+full_dates <- tibble(date = seq.Date(from=as.Date("2017-01-01"),
+                                     to=as.Date("2021-01-31"),
+                                     by="day"))
+
+data_full <- full_dates |> left_join(data, by="date") |> fill(everything())
+
+# Clearly define train (until 2020-12-31) and test (Jan 2021)
+train_data <- data_full |> filter(date <= "2020-12-31")
+test_data <- data_full |> filter(date >= "2021-01-01")
+
+# Create xts objects explicitly
+AQI_xts_train <- xts(train_data$AQI, order.by=train_data$date)
+AQI_xts_test <- xts(test_data$AQI, order.by=test_data$date)
+
+# External regressors explicitly defined
+xreg_train <- train_data |> select(temp, pressure, windspeedKmph, humidity)
+xreg_test <- test_data |> select(temp, pressure, windspeedKmph, humidity)
+
+# Fit daily ARIMAX model explicitly (corrected)
+daily_arimax_model <- auto.arima(AQI_xts_train, xreg=as.matrix(xreg_train))
+summary(daily_arimax_model)
+
+# Residual diagnostics
+checkresiduals(daily_arimax_model)
+
+# Forecast explicitly for January 2021
+forecast_days <- nrow(test_data)
+forecast_A2 <- forecast(daily_arimax_model, 
+                        xreg=as.matrix(xreg_test), h=forecast_days)
+
+# Plot forecast explicitly
+plot(forecast_A2, main="AQI Daily Forecast January 2021 (ARIMAX with Predictors)[A2]")
+lines(test_data$date, test_data$AQI, col="red", lwd=2)
+legend("topright", legend=c("Forecast", "Actual"), col=c("blue", "red"), lwd=2)
+
+# MSPE calculation explicitly
+MSPE_A2_daily <- mean((test_data$AQI - forecast_A2$mean)^2, na.rm=TRUE)
+
+cat("\n--- Model A2 (Daily ARIMAX with Predictors) Statistics ---\n")
+cat("AIC:", daily_arimax_model$aic, "\n")
+cat("BIC:", daily_arimax_model$bic, "\n")
+cat("Training MSE:", mean(daily_arimax_model$residuals^2, na.rm=TRUE), "\n")
+cat("Forecast MSPE (January 2021):", MSPE_A2_daily, "\n")
+
+# Residual diagnostics explicitly using Ljung-Box
+Box.test(daily_arimax_model$residuals, lag=20, type="Ljung-Box")
+```
+
+
+
+
+## (A2 new code for plotting)
+```{r}
+library(tidyverse)
+library(forecast)
+library(lubridate)
+library(xts)
+
+# === Data loading and preprocessing clearly ===
+data <- read.csv("Shanghai AQI and Wheather 2014-2021.csv") |>
+  mutate(date = as.Date(date)) |>
+  mutate(temp = (maxtempC + mintempC)/2) |>
+  filter(date >= "2017-01-01" & date <= "2021-01-31") |>
+  select(date, AQI, temp, pressure, windspeedKmph, humidity)
+
+# Explicitly fill missing dates if needed (continuous daily data)
+full_dates <- tibble(date = seq.Date(from=as.Date("2017-01-01"),
+                                     to=as.Date("2021-01-31"),
+                                     by="day"))
+
+data_full <- full_dates |> left_join(data, by="date") |> fill(everything())
+
+# Clearly define train (until 2020-12-31) and test (Jan 2021)
+train_data <- data_full |> filter(date <= "2020-12-31")
+test_data <- data_full |> filter(date >= "2021-01-01")
+
+# Create xts objects explicitly
+AQI_xts_train <- xts(train_data$AQI, order.by=train_data$date)
+AQI_xts_test <- xts(test_data$AQI, order.by=test_data$date)
+
+# External regressors explicitly defined
+xreg_train <- train_data |> select(temp, pressure, windspeedKmph, humidity)
+xreg_test <- test_data |> select(temp, pressure, windspeedKmph, humidity)
+
+# Fit daily ARIMAX model explicitly (corrected)
+daily_arimax_model <- auto.arima(AQI_xts_train, xreg=as.matrix(xreg_train))
+summary(daily_arimax_model)
+
+# Residual diagnostics
+checkresiduals(daily_arimax_model)
+
+# Recreate a proper time-series object for plotting
+forecast_start_date <- as.Date("2021-01-01")
+forecast_end_date <- as.Date("2021-01-31")
+
+# Generate a proper date sequence for the forecast horizon
+forecast_dates <- seq(forecast_start_date, forecast_end_date, by = "day")
+
+# Forecast explicitly for January 2021
+forecast_days <- length(forecast_dates)
+forecast_A2 <- forecast(daily_arimax_model, 
+                        xreg=as.matrix(xreg_test), h=forecast_days)
+
+# Plot forecast explicitly without default axes
+plot(forecast_dates, forecast_A2$mean, type="l", col="blue", lwd=2,
+     ylim=range(c(forecast_A2$lower, forecast_A2$upper, test_data$AQI)),
+     main="AQI Daily Forecast January 2021 (ARIMAX with Predictors)[A2]",
+     ylab="AQI", xlab="Date", xaxt="n")
+
+# Add forecast confidence intervals
+polygon(c(forecast_dates, rev(forecast_dates)),
+        c(forecast_A2$lower[,2], rev(forecast_A2$upper[,2])),
+        col=rgb(0,0,1,0.2), border=NA)
+
+# Explicitly add actual AQI values
+lines(forecast_dates, test_data$AQI, col="red", lwd=2)
+
+# Add clear x-axis with readable date labels
+axis.Date(1, at=forecast_dates, format="%Y-%m-%d", las=2, cex.axis=0.7)
+
+# Explicitly add legend
+legend("topright", legend=c("Forecast", "Actual"), col=c("blue", "red"), lwd=2)
+
+
+# MSPE calculation explicitly
+MSPE_A2_daily <- mean((test_data$AQI - forecast_A2$mean)^2, na.rm=TRUE)
+
+cat("\n--- Model A2 (Daily ARIMAX with Predictors) Statistics ---\n")
+cat("AIC:", daily_arimax_model$aic, "\n")
+cat("BIC:", daily_arimax_model$bic, "\n")
+cat("Training MSE:", mean(daily_arimax_model$residuals^2, na.rm=TRUE), "\n")
+cat("Forecast MSPE (January 2021):", MSPE_A2_daily, "\n")
+
+# Residual diagnostics explicitly using Ljung-Box
+Box.test(daily_arimax_model$residuals, lag=20, type="Ljung-Box")
+```
+
+## A3
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(xts)
+library(forecast)
+
+# Load and preprocess data explicitly
+data <- read.csv("Shanghai AQI and Wheather 2014-2021.csv") |>
+  mutate(date = as.Date(date)) |>
+  filter(date >= "2017-01-01" & date <= "2021-01-31") |>
+  select(date, AQI)
+
+# Explicitly fix missing dates if needed (ensure continuous daily data)
+full_dates <- tibble(date = seq.Date(from = as.Date("2017-01-01"),
+                                     to = as.Date("2021-01-31"),
+                                     by = "day"))
+
+data_full <- full_dates |> left_join(data, by = "date") |> fill(AQI, .direction = "downup")
+
+# Explicit train-test split
+train_data <- data_full |> filter(date <= "2020-12-31")
+test_data <- data_full |> filter(date >= "2021-01-01")
+
+# Create daily AQI ts object explicitly (with weekly seasonality, freq = 7)
+AQI_daily_ts_train <- ts(train_data$AQI, frequency=7, start=decimal_date(as.Date("2017-01-01")))
+
+# Fit explicitly seasonal ARIMA (SARIMA) model (daily, seasonal, no predictors)
+daily_sarima_model <- auto.arima(AQI_daily_ts_train, seasonal=TRUE)
+summary(daily_sarima_model)
+
+# Residual diagnostics explicitly
+checkresiduals(daily_sarima_model)
+
+# Forecast explicitly for January 2021 (daily)
+forecast_days <- nrow(test_data)
+forecast_sarima_daily <- forecast(daily_sarima_model, h=forecast_days)
+
+# Explicit plot with actual values clearly shown
+plot(forecast_sarima_daily, main="Daily AQI Forecast (SARIMA seasonal - January 2021)[A3]")
+lines(test_data$date, test_data$AQI, col="red", lwd=2)
+legend("topright", legend=c("Forecast", "Actual"), col=c("blue", "red"), lwd=2)
+
+# Explicit forecast MSPE calculation (Jan 2021)
+MSPE_A3_daily <- mean((test_data$AQI - forecast_sarima_daily$mean)^2)
+
+# Explicit evaluation statistics
+cat("\n--- Model A3 (Daily Seasonal ARIMA without Predictors) Statistics ---\n")
+cat("AIC:", daily_sarima_model$aic, "\n")
+cat("BIC:", daily_sarima_model$bic, "\n")
+cat("Training MSE:", mean(daily_sarima_model$residuals^2, na.rm=TRUE), "\n")
+cat("Forecast MSPE (January 2021):", MSPE_A3_daily, "\n")
+
+# Explicit residual autocorrelation check (Ljung-Box)
+Box.test(daily_sarima_model$residuals, lag=20, type="Ljung-Box")
+
+```
+
+##A3 plotteing
+
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(xts)
+library(forecast)
+
+# Load and preprocess data explicitly
+data <- read.csv("Shanghai AQI and Wheather 2014-2021.csv") |>
+  mutate(date = as.Date(date)) |>
+  filter(date >= "2017-01-01" & date <= "2021-01-31") |>
+  select(date, AQI)
+
+# Explicitly fix missing dates if needed (ensure continuous daily data)
+full_dates <- tibble(date = seq.Date(from = as.Date("2017-01-01"),
+                                     to = as.Date("2021-01-31"),
+                                     by = "day"))
+
+data_full <- full_dates |> left_join(data, by = "date") |> fill(AQI, .direction = "downup")
+
+# Explicit train-test split
+train_data <- data_full |> filter(date <= "2020-12-31")
+test_data <- data_full |> filter(date >= "2021-01-01")
+
+# Create daily AQI ts object explicitly (with weekly seasonality, freq = 7)
+AQI_daily_ts_train <- ts(train_data$AQI, frequency=7, start=decimal_date(as.Date("2017-01-01")))
+
+# Fit explicitly seasonal ARIMA (SARIMA) model (daily, seasonal, no predictors)
+daily_sarima_model <- auto.arima(AQI_daily_ts_train, seasonal=TRUE)
+summary(daily_sarima_model)
+
+# Residual diagnostics explicitly
+checkresiduals(daily_sarima_model)
+
+# Forecast explicitly for January 2021 (daily)
+forecast_days <- nrow(test_data)
+forecast_sarima_daily <- forecast(daily_sarima_model, h=forecast_days)
+
+# Explicit forecast dates for January 2021
+forecast_dates <- seq.Date(from = as.Date("2021-01-01"),
+                           by = "day",
+                           length.out = forecast_days)
+
+# Explicit plot of forecast without default axes
+plot(forecast_dates, forecast_sarima_daily$mean, type = "l",
+     col = "blue", lwd = 2,
+     ylim = range(c(forecast_sarima_daily$lower, forecast_sarima_daily$upper, test_data$AQI)),
+     main = "Daily AQI Forecast (SARIMA seasonal - January 2021)[A3]",
+     xlab = "Date", ylab = "AQI", xaxt = "n")
+
+# Explicit confidence intervals (95%)
+polygon(c(forecast_dates, rev(forecast_dates)),
+        c(forecast_sarima_daily$lower[,2], rev(forecast_sarima_daily$upper[,2])),
+        col = rgb(0, 0, 1, 0.2), border = NA)
+
+# Explicitly plot actual AQI values (red)
+lines(forecast_dates, test_data$AQI, col = "red", lwd = 2)
+
+# Explicit date-formatted x-axis labels
+axis.Date(1, at = forecast_dates, format = "%Y-%m-%d", las = 2, cex.axis = 0.7)
+
+# Add clear legend explicitly
+legend("topright", legend = c("Forecast", "Actual"), col = c("blue", "red"), lwd = 2)
+
+
+# Explicit forecast MSPE calculation (Jan 2021)
+MSPE_A3_daily <- mean((test_data$AQI - forecast_sarima_daily$mean)^2)
+
+# Explicit evaluation statistics
+cat("\n--- Model A3 (Daily Seasonal ARIMA without Predictors) Statistics ---\n")
+cat("AIC:", daily_sarima_model$aic, "\n")
+cat("BIC:", daily_sarima_model$bic, "\n")
+cat("Training MSE:", mean(daily_sarima_model$residuals^2, na.rm=TRUE), "\n")
+cat("Forecast MSPE (January 2021):", MSPE_A3_daily, "\n")
+
+# Explicit residual autocorrelation check (Ljung-Box)
+Box.test(daily_sarima_model$residuals, lag=20, type="Ljung-Box")
+```
+
+
+### B1. aggregate weekly, arima (no predictors)
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(xts)
+library(forecast)
+
+# Reload data and preprocessing explicitly
+data <- read.csv("Shanghai AQI and Wheather 2014-2021.csv") |>
+  mutate(date = as.Date(date)) |>
+  filter(date >= "2017-01-01" & date <= "2021-01-31") |>
+  select(date, AQI)
+
+# Explicitly fix missing dates (continuous daily data)
+full_dates <- tibble(date = seq.Date(from = as.Date("2017-01-01"),
+                                     to = as.Date("2021-01-31"),
+                                     by = "day"))
+
+data_full <- full_dates |> 
+  left_join(data, by = "date") |> 
+  fill(AQI, .direction = "downup")
+
+# Explicit train-test split
+train_data <- data_full |> filter(date <= "2020-12-31")
+test_data <- data_full |> filter(date >= "2021-01-01")
+
+# Convert explicitly to xts (daily training data)
+AQI_xts_train <- xts(train_data$AQI, order.by = train_data$date)
+
+# Aggregate explicitly to weekly averages (training set)
+AQI_weekly_train <- apply.weekly(AQI_xts_train, mean)
+
+# Explicitly create weekly ts object with adjusted frequency
+AQI_weekly_ts_train <- ts(as.numeric(AQI_weekly_train), 
+                          frequency = 365.25/7, 
+                          start = decimal_date(as.Date("2017-01-01")))
+
+# ARIMA model explicitly without predictors (weekly aggregated data)
+weekly_arima_model <- auto.arima(AQI_weekly_ts_train, seasonal=FALSE)
+summary(weekly_arima_model)
+checkresiduals(weekly_arima_model)
+
+# Weekly aggregation for test data (Jan 2021 explicitly aligned)
+AQI_xts_test <- xts(test_data$AQI, order.by = test_data$date)
+AQI_weekly_test <- apply.weekly(AQI_xts_test, mean)
+
+# Forecast explicitly matching test period length
+forecast_weeks <- length(AQI_weekly_test)
+
+weekly_forecast_arima <- forecast(weekly_arima_model, h=forecast_weeks)
+
+# Plot explicitly aligned forecast
+plot(weekly_forecast_arima, main="Weekly AQI Forecast (ARIMA without Predictors - Jan 2021)[B1]")
+lines(AQI_weekly_test, col="red", lwd=2) # Add actual values for clear comparison
+legend("topright", legend=c("Forecast", "Actual"), col=c("blue","red"), lwd=2)
+
+# Explicitly calculate Forecast MSPE
+MSPE_weekly <- mean((AQI_weekly_test - weekly_forecast_arima$mean)^2)
+
+cat("\n--- Model A2 (Weekly ARIMA without Predictors) Statistics ---\n")
+cat("AIC:", weekly_arima_model$aic, "\n")
+cat("BIC:", weekly_arima_model$bic, "\n")
+cat("Training MSE:", mean(weekly_arima_model$residuals^2, na.rm=TRUE), "\n")
+cat("Forecast MSPE (January 2021):", MSPE_weekly, "\n")
+
+# Explicit residual diagnostics with Ljung-Box test
+Box.test(weekly_arima_model$residuals, lag=20, type="Ljung-Box")
+```
+## B1 plottting
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(xts)
+library(forecast)
+
+# Reload data and preprocessing explicitly
+data <- read.csv("Shanghai AQI and Wheather 2014-2021.csv") |>
+  mutate(date = as.Date(date)) |>
+  filter(date >= "2017-01-01" & date <= "2021-01-31") |>
+  select(date, AQI)
+
+# Explicitly fix missing dates (continuous daily data)
+full_dates <- tibble(date = seq.Date(from = as.Date("2017-01-01"),
+                                     to = as.Date("2021-01-31"),
+                                     by = "day"))
+
+data_full <- full_dates |> 
+  left_join(data, by = "date") |> 
+  fill(AQI, .direction = "downup")
+
+# Explicit train-test split
+train_data <- data_full |> filter(date <= "2020-12-31")
+test_data <- data_full |> filter(date >= "2021-01-01")
+
+# Convert explicitly to xts (daily training data)
+AQI_xts_train <- xts(train_data$AQI, order.by = train_data$date)
+
+# Aggregate explicitly to weekly averages (training set)
+AQI_weekly_train <- apply.weekly(AQI_xts_train, mean)
+
+# Explicitly create weekly ts object with adjusted frequency
+AQI_weekly_ts_train <- ts(as.numeric(AQI_weekly_train), 
+                          frequency = 365.25/7, 
+                          start = decimal_date(as.Date("2017-01-01")))
+
+# ARIMA model explicitly without predictors (weekly aggregated data)
+weekly_arima_model <- auto.arima(AQI_weekly_ts_train, seasonal=FALSE)
+summary(weekly_arima_model)
+checkresiduals(weekly_arima_model)
+
+# Weekly aggregation for test data (Jan 2021 explicitly aligned)
+AQI_xts_test <- xts(test_data$AQI, order.by = test_data$date)
+AQI_weekly_test <- apply.weekly(AQI_xts_test, mean)
+
+# Forecast explicitly matching test period length
+forecast_weeks <- length(AQI_weekly_test)
+
+weekly_forecast_arima <- forecast(weekly_arima_model, h=forecast_weeks)
+
+# Plot explicitly aligned forecast
+# Explicit weekly dates for the January 2021 test data
+weekly_test_dates <- index(AQI_weekly_test)
+
+# Plot explicitly aligned weekly forecast without default axes
+plot(weekly_test_dates, weekly_forecast_arima$mean, type = "l",
+     col = "blue", lwd = 2,
+     ylim = range(c(weekly_forecast_arima$lower, weekly_forecast_arima$upper, AQI_weekly_test)),
+     main = "Weekly AQI Forecast (ARIMA without Predictors - Jan 2021)[B1]",
+     ylab = "AQI", xlab = "Week", xaxt = "n")
+
+# Add explicit forecast confidence intervals
+polygon(c(weekly_test_dates, rev(weekly_test_dates)),
+        c(weekly_forecast_arima$lower[,2], rev(weekly_forecast_arima$upper[,2])),
+        col = rgb(0, 0, 1, 0.2), border = NA)
+
+# Explicitly plot actual AQI weekly averages
+lines(weekly_test_dates, as.numeric(AQI_weekly_test), col = "red", lwd = 2)
+
+# Add explicit x-axis labels with weekly dates
+axis.Date(1, at = weekly_test_dates, format = "%Y-%m-%d", las = 2, cex.axis = 0.8)
+
+# Explicitly add a clear legend
+legend("topright", legend = c("Forecast", "Actual"), col = c("blue", "red"), lwd = 2)
+
+
+# Explicitly calculate Forecast MSPE
+MSPE_weekly <- mean((AQI_weekly_test - weekly_forecast_arima$mean)^2)
+
+cat("\n--- Model A2 (Weekly ARIMA without Predictors) Statistics ---\n")
+cat("AIC:", weekly_arima_model$aic, "\n")
+cat("BIC:", weekly_arima_model$bic, "\n")
+cat("Training MSE:", mean(weekly_arima_model$residuals^2, na.rm=TRUE), "\n")
+cat("Forecast MSPE (January 2021):", MSPE_weekly, "\n")
+
+# Explicit residual diagnostics with Ljung-Box test
+Box.test(weekly_arima_model$residuals, lag=20, type="Ljung-Box")
+```
+
+
+
+
+#### B2. aggregating weekly, arimaX
+```{r}
+library(tidyverse)
+library(lubridate)
+library(xts)
+library(forecast)
+
+# Load and preprocess data explicitly
+data <- read.csv("Shanghai AQI and Wheather 2014-2021.csv") |>
+  mutate(date = as.Date(date)) |>
+  mutate(temp = (maxtempC + mintempC)/2) |>
+  filter(date >= "2017-01-01" & date <= "2021-01-31") |>
+  select(date, AQI, temp, pressure, windspeedKmph, humidity)
+
+# Explicitly ensure continuous daily data (fill missing dates)
+full_dates <- tibble(date = seq.Date(from = as.Date("2017-01-01"),
+                                     to = as.Date("2021-01-31"),
+                                     by = "day"))
+
+data_full <- full_dates |> 
+  left_join(data, by = "date") |> 
+  fill(AQI, temp, pressure, windspeedKmph, humidity, .direction = "downup")
+
+# Explicitly split training (up to 2020) and test (Jan 2021)
+train_data <- data_full |> filter(date <= "2020-12-31")
+test_data <- data_full |> filter(date >= "2021-01-01")
+
+# Convert training data to xts explicitly
+AQI_xts_train <- xts(train_data$AQI, train_data$date)
+predictors_xts_train <- xts(train_data |> select(temp, pressure, windspeedKmph, humidity),
+                            train_data$date)
+
+# Aggregate explicitly weekly for training data
+AQI_weekly_train <- apply.weekly(AQI_xts_train, mean)
+predictors_weekly_train <- apply.weekly(predictors_xts_train, mean)
+
+# Convert explicitly to weekly ts objects (aligned precisely)
+AQI_weekly_ts_train <- ts(as.numeric(AQI_weekly_train),
+                          frequency = 365.25/7,
+                          start = decimal_date(as.Date("2017-01-01")))
+
+# Weekly ARIMAX model explicitly without seasonal component
+weekly_arimax_model <- auto.arima(AQI_weekly_ts_train,
+                                  seasonal = FALSE,
+                                  xreg = as.matrix(predictors_weekly_train))
+
+summary(weekly_arimax_model)
+checkresiduals(weekly_arimax_model)
+
+# Aggregate predictors explicitly weekly for January 2021 test data
+AQI_xts_test <- xts(test_data$AQI, test_data$date)
+predictors_xts_test <- xts(test_data |> select(temp, pressure, windspeedKmph, humidity),
+                           test_data$date)
+
+AQI_weekly_test <- apply.weekly(AQI_xts_test, mean)
+predictors_weekly_test <- apply.weekly(predictors_xts_test, mean)
+
+# Explicit forecast matching test weeks exactly
+forecast_weeks <- nrow(predictors_weekly_test)
+
+weekly_forecast_arimax <- forecast(weekly_arimax_model,
+                                   xreg = as.matrix(predictors_weekly_test),
+                                   h = forecast_weeks)
+
+# Plot explicitly aligned forecast with actual data
+plot(weekly_forecast_arimax, main="Weekly AQI Forecast Jan 2021 (ARIMAX, No Seasonal)[B2]")
+lines(AQI_weekly_test, col="red", lwd=2)
+legend("topright", legend=c("Forecast","Actual"), col=c("blue","red"), lwd=2)
+
+# Explicit evaluation statistics
+MSPE_weekly_B2 <- mean((AQI_weekly_test - weekly_forecast_arimax$mean)^2)
+
+cat("\n--- Model B2 (Weekly ARIMAX, No Seasonal, With Predictors) Statistics ---\n")
+cat("AIC:", weekly_arimax_model$aic, "\n")
+cat("BIC:", weekly_arimax_model$bic, "\n")
+cat("Training MSE:", mean(weekly_arimax_model$residuals^2, na.rm=TRUE), "\n")
+cat("Forecast MSPE (January 2021):", MSPE_weekly_B2, "\n")
+
+# Explicit residual diagnostics with Ljung-Box test
+Box.test(weekly_arimax_model$residuals, lag=20, type="Ljung-Box")
+
+
+```
+
+
+## B2 plotting
+```{r}
+library(tidyverse)
+library(lubridate)
+library(xts)
+library(forecast)
+
+# Load and preprocess data explicitly
+data <- read.csv("Shanghai AQI and Wheather 2014-2021.csv") |>
+  mutate(date = as.Date(date)) |>
+  mutate(temp = (maxtempC + mintempC)/2) |>
+  filter(date >= "2017-01-01" & date <= "2021-01-31") |>
+  select(date, AQI, temp, pressure, windspeedKmph, humidity)
+
+# Explicitly ensure continuous daily data (fill missing dates)
+full_dates <- tibble(date = seq.Date(from = as.Date("2017-01-01"),
+                                     to = as.Date("2021-01-31"),
+                                     by = "day"))
+
+data_full <- full_dates |> 
+  left_join(data, by = "date") |> 
+  fill(AQI, temp, pressure, windspeedKmph, humidity, .direction = "downup")
+
+# Explicitly split training (up to 2020) and test (Jan 2021)
+train_data <- data_full |> filter(date <= "2020-12-31")
+test_data <- data_full |> filter(date >= "2021-01-01")
+
+# Convert training data to xts explicitly
+AQI_xts_train <- xts(train_data$AQI, train_data$date)
+predictors_xts_train <- xts(train_data |> select(temp, pressure, windspeedKmph, humidity),
+                            train_data$date)
+
+# Aggregate explicitly weekly for training data
+AQI_weekly_train <- apply.weekly(AQI_xts_train, mean)
+predictors_weekly_train <- apply.weekly(predictors_xts_train, mean)
+
+# Convert explicitly to weekly ts objects (aligned precisely)
+AQI_weekly_ts_train <- ts(as.numeric(AQI_weekly_train),
+                          frequency = 365.25/7,
+                          start = decimal_date(as.Date("2017-01-01")))
+
+# Weekly ARIMAX model explicitly without seasonal component
+weekly_arimax_model <- auto.arima(AQI_weekly_ts_train,
+                                  seasonal = FALSE,
+                                  xreg = as.matrix(predictors_weekly_train))
+
+summary(weekly_arimax_model)
+checkresiduals(weekly_arimax_model)
+
+# Aggregate predictors explicitly weekly for January 2021 test data
+AQI_xts_test <- xts(test_data$AQI, test_data$date)
+predictors_xts_test <- xts(test_data |> select(temp, pressure, windspeedKmph, humidity),
+                           test_data$date)
+
+AQI_weekly_test <- apply.weekly(AQI_xts_test, mean)
+predictors_weekly_test <- apply.weekly(predictors_xts_test, mean)
+
+# Explicit forecast matching test weeks exactly
+forecast_weeks <- nrow(predictors_weekly_test)
+
+weekly_forecast_arimax <- forecast(weekly_arimax_model,
+                                   xreg = as.matrix(predictors_weekly_test),
+                                   h = forecast_weeks)
+
+# Define explicit dates for weekly forecasts in Jan 2021
+weekly_test_dates <- index(AQI_weekly_test)
+
+# Plot explicitly aligned forecast (without default axes)
+plot(weekly_test_dates, weekly_forecast_arimax$mean, type = "l",
+     col = "blue", lwd = 2,
+     ylim = range(c(weekly_forecast_arimax$lower, weekly_forecast_arimax$upper, AQI_weekly_test)),
+     main = "Weekly AQI Forecast Jan 2021 (ARIMAX, No Seasonal)[B2]",
+     ylab = "AQI", xlab = "Week", xaxt = "n")
+
+# Explicitly add confidence intervals
+polygon(c(weekly_test_dates, rev(weekly_test_dates)),
+        c(weekly_forecast_arimax$lower[,2], rev(weekly_forecast_arimax$upper[,2])),
+        col = rgb(0, 0, 1, 0.2), border = NA)
+
+# Explicitly plot actual weekly AQI data
+lines(weekly_test_dates, as.numeric(AQI_weekly_test), col = "red", lwd = 2)
+
+# Clearly add x-axis labels as weekly dates
+axis.Date(1, at = weekly_test_dates, format = "%Y-%m-%d", las = 2, cex.axis = 0.8)
+
+# Add clear legend
+legend("topright", legend = c("Forecast", "Actual"), col = c("blue", "red"), lwd = 2)
+
+
+# Explicit evaluation statistics
+MSPE_weekly_B2 <- mean((AQI_weekly_test - weekly_forecast_arimax$mean)^2)
+
+cat("\n--- Model B2 (Weekly ARIMAX, No Seasonal, With Predictors) Statistics ---\n")
+cat("AIC:", weekly_arimax_model$aic, "\n")
+cat("BIC:", weekly_arimax_model$bic, "\n")
+cat("Training MSE:", mean(weekly_arimax_model$residuals^2, na.rm=TRUE), "\n")
+cat("Forecast MSPE (January 2021):", MSPE_weekly_B2, "\n")
+
+# Explicit residual diagnostics with Ljung-Box test
+Box.test(weekly_arimax_model$residuals, lag=20, type="Ljung-Box")
+
+
+```
+
+
+## B4
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(xts)
+library(forecast)
+
+# === Data loading and explicit preprocessing ===
+data <- read.csv("Shanghai AQI and Wheather 2014-2021.csv") |>
+  mutate(date = as.Date(date)) |>
+  mutate(temp = (maxtempC + mintempC)/2) |>
+  filter(date >= "2017-01-01" & date <= "2021-01-31") |>
+  select(date, AQI, temp, pressure, windspeedKmph, humidity)
+
+# Explicitly ensure continuous daily data
+full_dates <- tibble(date = seq.Date(as.Date("2017-01-01"),
+                                     as.Date("2021-01-31"),
+                                     by="day"))
+
+data_full <- full_dates |> left_join(data, by="date") |>
+  fill(AQI, temp, pressure, windspeedKmph, humidity, .direction = "downup")
+
+# Explicit train-test split
+train_data <- data_full |> filter(date <= "2020-12-31")
+test_data <- data_full |> filter(date >= "2021-01-01")
+
+# Convert training data explicitly to xts
+AQI_xts_train <- xts(train_data$AQI, train_data$date)
+predictors_xts_train <- xts(train_data |> select(temp, pressure, windspeedKmph, humidity),
+                            train_data$date)
+
+# Weekly aggregation explicitly defined for AQI and predictors (training)
+AQI_weekly_train <- apply.weekly(AQI_xts_train, mean)
+predictors_weekly_train <- apply.weekly(predictors_xts_train, mean)
+
+# Create explicitly seasonal weekly ts object (annual seasonality freq=52)
+AQI_weekly_ts_train <- ts(as.numeric(AQI_weekly_train), 
+                          frequency=52, 
+                          start=c(2017, 1))
+
+# Explicitly fit weekly seasonal ARIMAX (SARIMAX) model with predictors
+weekly_sarimax_model <- auto.arima(AQI_weekly_ts_train,
+                                   seasonal=TRUE,
+                                   xreg=as.matrix(predictors_weekly_train))
+summary(weekly_sarimax_model)
+
+# Explicit residual diagnostics
+checkresiduals(weekly_sarimax_model)
+
+# Explicit weekly aggregation of AQI and predictors for test data (January 2021)
+AQI_xts_test <- xts(test_data$AQI, test_data$date)
+predictors_xts_test <- xts(test_data |> select(temp, pressure, windspeedKmph, humidity),
+                           test_data$date)
+
+AQI_weekly_test <- apply.weekly(AQI_xts_test, mean)
+predictors_weekly_test <- apply.weekly(predictors_xts_test, mean)
+
+# Forecast explicitly matching test weeks exactly
+forecast_weeks <- nrow(predictors_weekly_test)
+
+weekly_forecast_sarimax <- forecast(weekly_sarimax_model,
+                                    xreg=as.matrix(predictors_weekly_test),
+                                    h=forecast_weeks)
+
+# Explicit visualization with actual data for clear comparison
+plot(weekly_forecast_sarimax, 
+     main="Weekly AQI Forecast (SARIMAX, Annual Seasonality, Predictors)[B4]")
+lines(AQI_weekly_test, col="red", lwd=2)
+legend("topright", legend=c("Forecast","Actual"), col=c("blue","red"), lwd=2)
+
+# Explicit forecast MSPE calculation
+MSPE_weekly_B4 <- mean((AQI_weekly_test - weekly_forecast_sarimax$mean)^2)
+
+# Explicit evaluation statistics clearly reported
+cat("\n--- Model B4 (Weekly Seasonal ARIMAX with Predictors) Statistics ---\n")
+cat("AIC:", weekly_sarimax_model$aic, "\n")
+cat("BIC:", weekly_sarimax_model$bic, "\n")
+cat("Training MSE:", mean(weekly_sarimax_model$residuals^2, na.rm=TRUE), "\n")
+cat("Forecast MSPE (January 2021):", MSPE_weekly_B4, "\n")
+
+# Explicit residual diagnostics with Ljung-Box test
+Box.test(weekly_sarimax_model$residuals, lag=20, type="Ljung-Box")
+
+```
+
+## b4 plotting
+
+```{r}
+# Define explicit weekly dates for January 2021
+weekly_test_dates <- index(AQI_weekly_test)
+
+# Plot explicitly aligned SARIMAX forecasts without default axes
+plot(weekly_test_dates, weekly_forecast_sarimax$mean, type = "l",
+     col = "blue", lwd = 2,
+     ylim = range(c(weekly_forecast_sarimax$lower, weekly_forecast_sarimax$upper, AQI_weekly_test)),
+     main = "Weekly AQI Forecast (SARIMAX, Annual Seasonality, Predictors)[B4]",
+     ylab = "AQI", xlab = "Week", xaxt = "n")
+
+# Add explicit confidence intervals
+polygon(c(weekly_test_dates, rev(weekly_test_dates)),
+        c(weekly_forecast_sarimax$lower[,2], rev(weekly_forecast_sarimax$upper[,2])),
+        col = rgb(0, 0, 1, 0.2), border = NA)
+
+# Explicitly plot actual AQI weekly values
+lines(weekly_test_dates, as.numeric(AQI_weekly_test), col = "red", lwd = 2)
+
+# Add explicitly formatted weekly x-axis labels
+axis.Date(1, at = weekly_test_dates, format = "%Y-%m-%d", las = 2, cex.axis = 0.8)
+
+# Add explicit legend for clarity
+legend("topright", legend = c("Forecast", "Actual"), col = c("blue", "red"), lwd = 2)
+
+```
+
+
